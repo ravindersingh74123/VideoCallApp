@@ -1,14 +1,37 @@
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-import Home from "./pages/Home";
-import Meeting from "./pages/Meetings";
+import React from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import Login from "./pages/Login";
+import Signup from "./pages/Signup";
+import Meeting from "./pages/Meeting";
+import Home from "./pages/Home"; // new home page
+import PrivateRoute from "./components/PrivateRoute";
 
-export default function App() {
+function App() {
   return (
-    <Router>
+    <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/meeting/:id" element={<Meeting />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route 
+          path="/meeting/:id" 
+          element={
+            <PrivateRoute>
+              <Meeting />
+            </PrivateRoute>
+          } 
+        />
+        <Route 
+          path="/" 
+          element={
+            <PrivateRoute>
+              <Home />
+            </PrivateRoute>
+          } 
+        />
+        <Route path="*" element={<Navigate to="/" />} />
       </Routes>
-    </Router>
+    </BrowserRouter>
   );
 }
+
+export default App;

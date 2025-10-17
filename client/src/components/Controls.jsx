@@ -1,31 +1,33 @@
-// src/components/Controls.jsx
 import React from "react";
+import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaDesktop } from "react-icons/fa";
+
 
 export default function Controls({ muted, cameraOff, onToggleMute, onToggleCamera, onScreenShare }) {
   return (
-    <div className="bg-gray-800 rounded-md p-3">
-      <div className="flex flex-col space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="text-sm">Microphone</div>
-          <button onClick={onToggleMute} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">
-            {muted ? "Unmute" : "Mute"}
-          </button>
-        </div>
+    <div className="flex justify-center space-x-4 mt-2">
+      {/* Mute/Unmute */}
+      <button
+        onClick={onToggleMute}
+        className={`p-3 rounded-full ${muted ? "bg-red-600" : "bg-green-600"} hover:scale-110 transition`}
+      >
+        {muted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
+      </button>
 
-        <div className="flex items-center justify-between">
-          <div className="text-sm">Camera</div>
-          <button onClick={onToggleCamera} className="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600">
-            {cameraOff ? "Turn On" : "Turn Off"}
-          </button>
-        </div>
+      {/* Camera On/Off */}
+      <button
+        onClick={onToggleCamera}
+        className={`p-3 rounded-full ${cameraOff ? "bg-red-600" : "bg-green-600"} hover:scale-110 transition`}
+      >
+        {cameraOff ? <FaVideoSlash size={20} /> : <FaVideo size={20} />}
+      </button>
 
-        <div className="flex items-center justify-between">
-          <div className="text-sm">Screen Share</div>
-          <button onClick={onScreenShare} className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700">
-            Share Screen
-          </button>
-        </div>
-      </div>
+      {/* Screen Share */}
+      <button
+        onClick={onScreenShare}
+        className="p-3 rounded-full bg-blue-600 hover:scale-110 transition"
+      >
+        <FaDesktop size={20} />
+      </button>
     </div>
   );
 }

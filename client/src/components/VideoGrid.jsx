@@ -1,4 +1,3 @@
-// src/components/VideoGrid.jsx
 import React from "react";
 
 export default function VideoGrid({ localVideoRef, localStream, peers }) {
@@ -41,6 +40,8 @@ function PeerTile({ socketId, stream }) {
     <div className="bg-black rounded-md relative">
       <video ref={ref} autoPlay playsInline className="w-full h-56 object-cover rounded-md" />
       <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">{socketId.slice(0,6)}</div>
+      <div className="absolute bottom-2 left-2 bg-black/50 text-white text-xs px-2 py-1 rounded">{p.user?.name || socketId.slice(0,6)}</div>
+
     </div>
   );
 }
