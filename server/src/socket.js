@@ -1,56 +1,203 @@
-// src/socket.js
-const { v4: uuidv4 } = require('uuid');
-const meetings = new Map(); // meetingId => { sockets: Map(socketId => { user }) }
+const { Server } = require("socket.io");
+const Meeting = require("./models/Meeting");
+const ChatMessage = require("./models/ChatMessage");
 
-function registerSocketHandlers(io) {
-  io.on('connection', (socket) => {
-    console.log('Socket connected', socket.id);
+module.exports = (server) => {
+  const io = new Server(server, {
+    cors: {
+      origin: process.env.FRONTEND_URL || "*",
+      methods: ["GET", "POST"],
+    },
+    pingTimeout: 60000,
+    pingInterval: 25000,
+  });
 
-    socket.on('join-meeting', ({ meetingId, user }) => {
-      socket.join(meetingId);
-      let room = meetings.get(meetingId);
-      if (!room) {
-        room = { sockets: new Map() };
-        meetings.set(meetingId, room);
+  // Store meeting rooms in memory for better tracking
+  const meetingRooms = new Map();
+
+  io.on("connection", (socket) => {
+    console.log("User connected:", socket.id);
+
+    let currentMeeting = null;
+    let currentUser = null;
+
+    // Join meeting
+    socket.on("join-meeting", async ({ meetingId, user }) => {
+      console.log(`User ${user.name} (${socket.id}) joining meeting ${meetingId}`);
+      
+      // Clean up previous meeting if exists
+      if (currentMeeting && currentMeeting !== meetingId) {
+        handleUserLeave(socket, currentMeeting);
       }
-      room.sockets.set(socket.id, { user });
 
-      // Notify existing participants about new user
-      socket.to(meetingId).emit('user-joined', { socketId: socket.id, user });
+      socket.join(meetingId);
+      socket.user = user;
+      socket.meetingId = meetingId;
+      currentMeeting = meetingId;
+      currentUser = user;
 
-      // Send list of existing participants to new user
-      const participants = Array.from(room.sockets.entries()).map(([sid, info]) => ({ socketId: sid, user: info.user }));
-      socket.emit('meeting-participants', participants);
+      // Initialize room if it doesn't exist
+      if (!meetingRooms.has(meetingId)) {
+        meetingRooms.set(meetingId, new Map());
+      }
+
+      const room = meetingRooms.get(meetingId);
+      
+      // Add/update user in room
+      room.set(socket.id, { socketId: socket.id, user });
+
+      // Send previous chat messages to this user
+      try {
+        const messages = await ChatMessage.find({ meetingId }).sort({
+          timestamp: 1,
+        });
+        console.log(`Sending ${messages.length} chat messages to ${user.name}`);
+        socket.emit("chat-history", messages);
+      } catch (err) {
+        console.error("Error fetching chat messages:", err);
+      }
+
+      // Get current participants from our Map (more reliable than socket.io rooms)
+      const participants = Array.from(room.values());
+      
+      console.log(`Meeting ${meetingId} participants:`, participants.length, participants.map(p => p.user?.name));
+
+      // Send list of OTHER participants to the new user
+      const otherParticipants = participants.filter(p => p.socketId !== socket.id);
+      socket.emit("meeting-participants", otherParticipants);
+
+      // Notify existing participants about the new user
+      socket.to(meetingId).emit("user-joined", { 
+        socketId: socket.id, 
+        user: user 
+      });
+
+      console.log(`Meeting ${meetingId} now has ${room.size} participants`);
     });
 
-    socket.on('webrtc-offer', (payload) => {
-      const { to } = payload;
-      io.to(to).emit('webrtc-offer', { ...payload, from: socket.id });
+    // Explicit leave meeting
+    socket.on("leave-meeting", ({ meetingId }) => {
+      console.log(`User ${socket.id} explicitly leaving meeting ${meetingId}`);
+      handleUserLeave(socket, meetingId);
     });
 
-    socket.on('webrtc-answer', (payload) => {
-      const { to } = payload;
-      io.to(to).emit('webrtc-answer', { ...payload, from: socket.id });
+    // Chat message
+    socket.on("chat-message", async ({ meetingId, message, user }) => {
+      console.log("Received chat-message:", { meetingId, message, user });
+
+      if (!meetingId) {
+        console.error("No meetingId provided in chat-message event");
+        return;
+      }
+
+      if (!user || !user._id) {
+        console.error("User or user._id is missing:", user);
+        return;
+      }
+
+      const timestamp = Date.now();
+
+      // Save message to DB
+      try {
+        const chatMsg = new ChatMessage({
+          meetingId: meetingId,
+          user: {
+            _id: user._id,
+            name: user.name,
+          },
+          message: message,
+          timestamp: timestamp,
+        });
+        await chatMsg.save();
+        console.log("Chat message saved to DB successfully!");
+      } catch (err) {
+        console.error("Error saving chat message:", err);
+      }
+
+      // Emit message to all participants in the meeting
+      io.to(meetingId).emit("chat-message", { message, user, timestamp });
     });
 
-    socket.on('ice-candidate', ({ to, candidate }) => {
-      io.to(to).emit('ice-candidate', { from: socket.id, candidate });
-    });
-
-    socket.on('chat-message', ({ meetingId, message, user }) => {
-      io.to(meetingId).emit('chat-message', { message, user, timestamp: Date.now() });
-    });
-
-    socket.on('disconnecting', () => {
-      // Remove from all rooms
-      meetings.forEach((room, meetingId) => {
-        if (room.sockets.has(socket.id)) {
-          room.sockets.delete(socket.id);
-          socket.to(meetingId).emit('user-left', { socketId: socket.id });
-        }
+    // WebRTC signaling events
+    socket.on("webrtc-offer", ({ to, sdp, fromUser }) => {
+      console.log(`Relaying WebRTC offer from ${socket.id} to ${to}`);
+      io.to(to).emit("webrtc-offer", { 
+        from: socket.id, 
+        sdp,
+        fromUser 
       });
     });
-  });
-}
 
-module.exports = { registerSocketHandlers };
+    socket.on("webrtc-answer", ({ to, sdp }) => {
+      console.log(`Relaying WebRTC answer from ${socket.id} to ${to}`);
+      io.to(to).emit("webrtc-answer", { 
+        from: socket.id, 
+        sdp 
+      });
+    });
+
+    socket.on("ice-candidate", ({ to, candidate }) => {
+      io.to(to).emit("ice-candidate", { 
+        from: socket.id, 
+        candidate 
+      });
+    });
+
+    // Handle disconnection
+    socket.on("disconnect", () => {
+      console.log("User disconnected:", socket.id);
+      
+      if (currentMeeting) {
+        handleUserLeave(socket, currentMeeting);
+      }
+    });
+
+    // Helper function to handle user leaving
+    function handleUserLeave(socket, meetingId) {
+      const room = meetingRooms.get(meetingId);
+      
+      if (room) {
+        const hadUser = room.has(socket.id);
+        room.delete(socket.id);
+        
+        if (hadUser) {
+          console.log(`User ${socket.id} left meeting ${meetingId}`);
+
+          // Notify others about user leaving
+          socket.to(meetingId).emit("user-left", {
+            socketId: socket.id,
+          });
+
+          // Clean up empty rooms
+          if (room.size === 0) {
+            meetingRooms.delete(meetingId);
+            console.log(`Meeting ${meetingId} is now empty and removed from memory`);
+          } else {
+            console.log(`Meeting ${meetingId} now has ${room.size} participants`);
+          }
+        }
+      }
+
+      // Leave the socket.io room
+      socket.leave(meetingId);
+      
+      // Clear current meeting tracking
+      if (currentMeeting === meetingId) {
+        currentMeeting = null;
+        currentUser = null;
+      }
+    }
+  });
+
+  // Optional: Clean up stale meetings periodically
+  setInterval(() => {
+    for (const [meetingId, room] of meetingRooms.entries()) {
+      if (room.size === 0) {
+        meetingRooms.delete(meetingId);
+        console.log(`Cleaned up empty meeting: ${meetingId}`);
+      }
+    }
+  }, 60000); // Every minute
+
+  return io;
+};

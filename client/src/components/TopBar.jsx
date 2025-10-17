@@ -1,6 +1,7 @@
 // src/components/TopBar.jsx
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { LogOut } from "lucide-react"; // Icon for logout
 
 export default function TopBar() {
   const navigate = useNavigate();
@@ -13,39 +14,32 @@ export default function TopBar() {
   };
 
   return (
-    <div className="bg-gray-800 text-white px-6 py-3 flex justify-between items-center shadow-md">
-      <div className="text-lg font-bold cursor-pointer" onClick={() => navigate("/")}>
+    <div className="bg-transparent text-white px-6 py-4 flex justify-between items-center">
+      <div className="text-2xl font-bold cursor-pointer" onClick={() => navigate("/")}>
         VideoMeet
       </div>
-
-      <div className="flex items-center space-x-4">
-        {user ? (
-          <>
-            <span>Hello, {user.name}</span>
-            <button
-              onClick={handleLogout}
-              className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded"
-            >
-              Logout
-            </button>
-          </>
-        ) : (
-          <>
-            <button
-              onClick={() => navigate("/login")}
-              className="px-3 py-1 bg-blue-600 hover:bg-blue-700 rounded"
-            >
-              Login
-            </button>
-            <button
-              onClick={() => navigate("/signup")}
-              className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded"
-            >
-              Signup
-            </button>
-          </>
-        )}
-      </div>
+      
+      {user ? (
+        <div className="flex items-center space-x-4">
+          <span className="text-gray-300">Hello, {user.name}</span>
+          <button
+            onClick={handleLogout}
+            title="Logout"
+            className="p-2 bg-red-600 hover:bg-red-700 rounded-full transition-colors"
+          >
+            <LogOut size={18} />
+          </button>
+        </div>
+      ) : (
+        <div className="flex items-center space-x-2">
+          <button onClick={() => navigate("/login")} className="px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors">
+            Login
+          </button>
+          <button onClick={() => navigate("/signup")} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors font-semibold">
+            Sign Up
+          </button>
+        </div>
+      )}
     </div>
   );
 }

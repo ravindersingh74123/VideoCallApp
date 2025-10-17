@@ -1,33 +1,74 @@
+// src/components/Controls.jsx
 import React from "react";
-import { FaMicrophone, FaMicrophoneSlash, FaVideo, FaVideoSlash, FaDesktop } from "react-icons/fa";
+import {
+  Mic, MicOff, Video, VideoOff, ScreenShare, PhoneOff, MessageSquare
+} from "lucide-react";
 
+// A reusable button component for a consistent look and accessibility
+const ControlButton = ({ onClick, children, className = "", title }) => (
+  <button
+    onClick={onClick}
+    title={title}
+    className={`p-3 rounded-full transition-all duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1E1E1E] focus-visible:ring-blue-500 ${className}`}
+  >
+    {children}
+  </button>
+);
 
-export default function Controls({ muted, cameraOff, onToggleMute, onToggleCamera, onScreenShare }) {
+export default function Controls({
+  muted,
+  cameraOff,
+  isChatOpen,
+  onToggleMute,
+  onToggleCamera,
+  onScreenShare,
+  onLeave,
+  onToggleChat,
+}) {
   return (
-    <div className="flex justify-center space-x-4 mt-2">
-      {/* Mute/Unmute */}
-      <button
+    <div className="bg-[#1E1E1E] rounded-xl p-3 flex justify-center items-center gap-4 shadow-lg mx-auto">
+      <ControlButton
         onClick={onToggleMute}
-        className={`p-3 rounded-full ${muted ? "bg-red-600" : "bg-green-600"} hover:scale-110 transition`}
+        title={muted ? "Unmute" : "Mute"}
+        className={muted ? "bg-red-600 text-white" : "bg-gray-600 text-white hover:bg-gray-500"}
       >
-        {muted ? <FaMicrophoneSlash size={20} /> : <FaMicrophone size={20} />}
-      </button>
+        {muted ? <MicOff size={22} /> : <Mic size={22} />}
+      </ControlButton>
 
-      {/* Camera On/Off */}
-      <button
+      <ControlButton
         onClick={onToggleCamera}
-        className={`p-3 rounded-full ${cameraOff ? "bg-red-600" : "bg-green-600"} hover:scale-110 transition`}
+        title={cameraOff ? "Turn Camera On" : "Turn Camera Off"}
+        className={cameraOff ? "bg-red-600 text-white" : "bg-gray-600 text-white hover:bg-gray-500"}
       >
-        {cameraOff ? <FaVideoSlash size={20} /> : <FaVideo size={20} />}
-      </button>
+        {cameraOff ? <VideoOff size={22} /> : <Video size={22} />}
+      </ControlButton>
 
-      {/* Screen Share */}
-      <button
+      <ControlButton
         onClick={onScreenShare}
-        className="p-3 rounded-full bg-blue-600 hover:scale-110 transition"
+        title="Share Screen"
+        className="bg-gray-600 text-white hover:bg-gray-500"
       >
-        <FaDesktop size={20} />
-      </button>
+        <ScreenShare size={22} />
+      </ControlButton>
+
+      {/* Visual Separator */}
+      <div className="h-8 w-[1px] bg-gray-600 mx-2"></div>
+
+      <ControlButton
+        onClick={onToggleChat}
+        title={isChatOpen ? "Hide Chat" : "Show Chat"}
+        className={isChatOpen ? "bg-blue-600 text-white" : "bg-gray-600 text-white hover:bg-gray-500"}
+      >
+        <MessageSquare size={22} />
+      </ControlButton>
+
+      <ControlButton
+        onClick={onLeave}
+        title="Leave Meeting"
+        className="bg-red-600 text-white hover:bg-red-700"
+      >
+        <PhoneOff size={22} />
+      </ControlButton>
     </div>
   );
 }

@@ -4,13 +4,31 @@ const router = express.Router();
 const mongoose = require("mongoose");
 const Meeting = require("../models/Meeting");
 
+const ChatMessage = require("../models/ChatMessage");
+
+// Get all messages for a meeting
+// GET /api/meetings/:id/messages
+router.get("/:id/messages", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const messages = await ChatMessage.find({ meetingId: id }).sort({ timestamp: 1 });
+    res.json({ messages });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Failed to fetch messages" });
+  }
+});
+
+
 // Create a new meeting
 router.post("/", async (req, res) => {
   const { meetingId, createdBy } = req.body;
 
   // Validate input
   if (!meetingId || !createdBy) {
-    return res.status(400).json({ message: "Meeting ID and creator are required" });
+    return res
+      .status(400)
+      .json({ message: "Meeting ID and creator are required" });
   }
 
   if (!mongoose.Types.ObjectId.isValid(createdBy)) {

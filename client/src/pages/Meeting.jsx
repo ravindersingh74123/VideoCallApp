@@ -1,529 +1,4 @@
-// // src/pages/Meeting.jsx
-// import React, { useEffect, useRef, useState } from "react";
-// import { useParams } from "react-router-dom";
-// import { socket } from "../services/socket";
-// import VideoGrid from "../components/VideoGrid";
-// import Controls from "../components/Controls.jsx";
-// import ChatPanel from "../components/ChatPanel";
-
-// const STUN_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
-
-// export default function Meeting() {
-//   const { id: meetingId } = useParams();
-//   const localVideoRef = useRef(null);
-//   const [localStream, setLocalStream] = useState(null);
-//   const [peers, setPeers] = useState({}); // { socketId: { pc, stream, user } }
-//   const pcsRef = useRef({}); // mutable map of RTCPeerConnection objects
-//   const [participants, setParticipants] = useState([]); // list of { socketId, user }
-//   const [chatMessages, setChatMessages] = useState([]);
-//   const [muted, setMuted] = useState(false);
-//   const [cameraOff, setCameraOff] = useState(false);
-
-//   // get local media
-//   useEffect(() => {
-//     let mounted = true;
-//     async function startLocal() {
-//       try {
-//         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-//         if (!mounted) return;
-//         setLocalStream(stream);
-//         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-//       } catch (err) {
-//         console.error("Could not get user media", err);
-//         alert("Please allow camera/microphone access.");
-//       }
-//     }
-//     startLocal();
-//     return () => { mounted = false; };
-//   }, []);
-
-//   // Socket handlers + join
-//   useEffect(() => {
-//     if (!meetingId) return;
-
-//     // connect socket
-//     socket.connect();
-
-//     const user = { name: "Guest-" + Math.floor(Math.random() * 1000) };
-//     socket.emit("join-meeting", { meetingId, user });
-
-//     socket.on("meeting-participants", (list) => {
-//       // list contains existing participants (including ourselves maybe)
-//       // Filter out ourselves if present
-//       const others = list.filter(p => p.socketId !== socket.id);
-//       setParticipants(others);
-//       // For each existing participant, create an offer (we will call createOffer)
-//       others.forEach(p => {
-//         createOfferTo(p.socketId, p.user);
-//       });
-//     });
-
-//     socket.on("user-joined", ({ socketId, user }) => {
-//       // someone joined after us; store and wait for its offer or create one
-//       setParticipants(prev => {
-//         if (prev.find(x => x.socketId === socketId)) return prev;
-//         return [...prev, { socketId, user }];
-//       });
-//       // If we already have localStream, notify them by creating offer
-//       // We'll create an offer to the new user.
-//       createOfferTo(socketId, user);
-//     });
-
-//     socket.on("webrtc-offer", async ({ from, sdp, fromUser }) => {
-//       // Receive offer from a peer -> create pc, set remote desc, create answer
-//       if (pcsRef.current[from]) {
-//         console.warn("Already have pc for", from);
-//       }
-
-//       const pc = createPeerConnection(from);
-//       pcsRef.current[from] = pc;
-
-//       try {
-//         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-//         const answer = await pc.createAnswer();
-//         await pc.setLocalDescription(answer);
-//         socket.emit("webrtc-answer", { to: from, sdp: pc.localDescription });
-//       } catch (err) {
-//         console.error("Error handling offer", err);
-//       }
-//     });
-
-//     socket.on("webrtc-answer", async ({ from, sdp }) => {
-//       const pc = pcsRef.current[from];
-//       if (!pc) {
-//         console.warn("No pc found for answer from", from);
-//         return;
-//       }
-//       try {
-//         await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-//       } catch (err) {
-//         console.error("Error setting remote description (answer):", err);
-//       }
-//     });
-
-//     socket.on("ice-candidate", async ({ from, candidate }) => {
-//       const pc = pcsRef.current[from];
-//       if (!pc) return;
-//       try {
-//         await pc.addIceCandidate(new RTCIceCandidate(candidate));
-//       } catch (err) {
-//         console.error("Error adding remote ICE candidate", err);
-//       }
-//     });
-
-//     socket.on("chat-message", ({ message, user, timestamp }) => {
-//       setChatMessages(prev => [...prev, { message, user, timestamp }]);
-//     });
-
-//     // cleanup on leave
-//     return () => {
-//       socket.off("meeting-participants");
-//       socket.off("user-joined");
-//       socket.off("webrtc-offer");
-//       socket.off("webrtc-answer");
-//       socket.off("ice-candidate");
-//       socket.off("chat-message");
-//       socket.disconnect();
-
-//       // close peer connections
-//       Object.values(pcsRef.current).forEach(pc => {
-//         try { pc.close(); } catch (e) {}
-//       });
-//       pcsRef.current = {};
-//       setPeers({});
-//     };
-//     // eslint-disable-next-line react-hooks/exhaustive-deps
-//   }, [meetingId, localStream]);
-
-//   // Helper: create RTCPeerConnection and wire handlers
-//   function createPeerConnection(remoteSocketId) {
-//     const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
-
-//     // add local tracks
-//     if (localStream) {
-//       localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-//     }
-
-//     // when remote track arrives
-//     const remoteStream = new MediaStream();
-//     pc.ontrack = (ev) => {
-//       ev.streams?.[0]?.getTracks().forEach(t => remoteStream.addTrack(t));
-//       setPeers(prev => ({
-//         ...prev,
-//         [remoteSocketId]: { ...(prev[remoteSocketId] || {}), stream: remoteStream }
-//       }));
-//     };
-
-//     // ice candidates -> send to remote
-//     pc.onicecandidate = (e) => {
-//       if (e.candidate) {
-//         socket.emit("ice-candidate", { to: remoteSocketId, candidate: e.candidate });
-//       }
-//     };
-
-//     // connection state
-//     pc.onconnectionstatechange = () => {
-//       if (pc.connectionState === "failed" || pc.connectionState === "disconnected" || pc.connectionState === "closed") {
-//         // remove peer
-//         setPeers(prev => {
-//           const copy = { ...prev };
-//           delete copy[remoteSocketId];
-//           return copy;
-//         });
-//         if (pcsRef.current[remoteSocketId]) {
-//           try { pcsRef.current[remoteSocketId].close(); } catch (e) {}
-//           delete pcsRef.current[remoteSocketId];
-//         }
-//       }
-//     };
-
-//     // Save basic meta
-//     setPeers(prev => ({
-//       ...prev,
-//       [remoteSocketId]: { ...(prev[remoteSocketId] || {}), pc, stream: remoteStream }
-//     }));
-
-//     return pc;
-//   }
-
-//   // Create offer to a remote peer
-//   async function createOfferTo(remoteSocketId, remoteUser) {
-//     // Avoid duplicate pc
-//     if (pcsRef.current[remoteSocketId]) return;
-
-//     const pc = createPeerConnection(remoteSocketId);
-//     pcsRef.current[remoteSocketId] = pc;
-
-//     try {
-//       const offer = await pc.createOffer();
-//       await pc.setLocalDescription(offer);
-//       socket.emit("webrtc-offer", { to: remoteSocketId, sdp: pc.localDescription, fromUser: { name: "me" } });
-//     } catch (err) {
-//       console.error("Error creating offer", err);
-//     }
-//   }
-
-//   // Controls: mute/unmute
-//   function toggleMute() {
-//     if (!localStream) return;
-//     const audioTracks = localStream.getAudioTracks();
-//     audioTracks.forEach(t => t.enabled = !t.enabled);
-//     setMuted(audioTracks.length > 0 ? !audioTracks[0].enabled : false);
-//   }
-
-//   // Controls: toggle camera
-//   function toggleCamera() {
-//     if (!localStream) return;
-//     const videoTracks = localStream.getVideoTracks();
-//     videoTracks.forEach(t => t.enabled = !t.enabled);
-//     setCameraOff(videoTracks.length > 0 ? !videoTracks[0].enabled : false);
-//   }
-
-//   // Screen share
-//   async function startScreenShare() {
-//     if (!navigator.mediaDevices.getDisplayMedia) {
-//       alert("Screen sharing not supported in this browser.");
-//       return;
-//     }
-//     try {
-//       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-//       const screenTrack = screenStream.getVideoTracks()[0];
-
-//       // replace each pc's sender track for video
-//       Object.values(pcsRef.current).forEach(pc => {
-//         const senders = pc.getSenders().filter(s => s.track && s.track.kind === "video");
-//         if (senders.length) {
-//           senders[0].replaceTrack(screenTrack).catch(err => console.warn("replaceTrack failed", err));
-//         }
-//       });
-
-//       // when user stops screen share, revert to camera
-//       screenTrack.onended = () => {
-//         // revert to camera track
-//         if (!localStream) return;
-//         const camTrack = localStream.getVideoTracks()[0];
-//         if (!camTrack) return;
-//         Object.values(pcsRef.current).forEach(pc => {
-//           const senders = pc.getSenders().filter(s => s.track && s.track.kind === "video");
-//           if (senders.length) {
-//             senders[0].replaceTrack(camTrack).catch(err => console.warn("replaceTrack revert failed", err));
-//           }
-//         });
-//       };
-//     } catch (err) {
-//       console.error("Screen share error:", err);
-//     }
-//   }
-
-//   // Send chat
-//   function sendChat(message) {
-//     if (!message?.trim()) return;
-//     socket.emit("chat-message", { meetingId, message, user: { name: "Me" } });
-//     setChatMessages(prev => [...prev, { message, user: { name: "Me" }, timestamp: Date.now() }]);
-//   }
-
-//   // Render
-//   return (
-//     <div className="h-screen flex flex-col">
-//       <div className="flex-1 p-4 bg-gray-900 text-white">
-//         <div className="max-w-6xl mx-auto">
-//           <h2 className="text-lg mb-2">Meeting: {meetingId}</h2>
-
-//           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-//             <div className="md:col-span-2">
-//               <VideoGrid
-//                 localVideoRef={localVideoRef}
-//                 localStream={localStream}
-//                 peers={peers}
-//               />
-//             </div>
-
-//             <div className="space-y-4">
-//               <Controls
-//                 muted={muted}
-//                 cameraOff={cameraOff}
-//                 onToggleMute={toggleMute}
-//                 onToggleCamera={toggleCamera}
-//                 onScreenShare={startScreenShare}
-//               />
-//               <ChatPanel messages={chatMessages} onSend={sendChat} />
-//             </div>
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-// // src/pages/Meeting.jsx
-// import React, { useEffect, useRef, useState } from "react";
-// import { useParams } from "react-router-dom";
-// import { socket } from "../services/socket";
-// import VideoGrid from "../components/VideoGrid";
-// import Controls from "../components/Controls";
-// import ChatPanel from "../components/ChatPanel";
-
-// const STUN_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
-
-// export default function Meeting() {
-//   const { id: meetingId } = useParams();
-//   const localVideoRef = useRef(null);
-//   const [localStream, setLocalStream] = useState(null);
-//   const [peers, setPeers] = useState({}); // { socketId: { pc, stream, user } }
-//   const pcsRef = useRef({});
-//   const [participants, setParticipants] = useState([]);
-//   const [chatMessages, setChatMessages] = useState([]);
-//   const [muted, setMuted] = useState(false);
-//   const [cameraOff, setCameraOff] = useState(false);
-
-//   // Initialize local media
-//   useEffect(() => {
-//     let mounted = true;
-//     async function startLocal() {
-//       try {
-//         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-//         if (!mounted) return;
-//         setLocalStream(stream);
-//         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
-//       } catch (err) {
-//         console.error("Camera/mic error:", err);
-//         alert("Please allow camera and microphone access.");
-//       }
-//     }
-//     startLocal();
-//     return () => { mounted = false; };
-//   }, []);
-
-//   // Socket events
-//   useEffect(() => {
-//     if (!meetingId) return;
-
-//     socket.connect();
-
-//     const user = { name: "Guest-" + Math.floor(Math.random() * 1000) };
-//     socket.emit("join-meeting", { meetingId, user });
-
-//     // Existing participants
-//     socket.on("meeting-participants", (list) => {
-//       const others = list.filter(p => p.socketId !== socket.id);
-//       setParticipants(others);
-//       others.forEach(p => createOfferTo(p.socketId));
-//     });
-
-//     // New user joined
-//     socket.on("user-joined", ({ socketId, user }) => {
-//       setParticipants(prev => {
-//         if (prev.find(x => x.socketId === socketId)) return prev;
-//         return [...prev, { socketId, user }];
-//       });
-//       createOfferTo(socketId);
-//     });
-
-//     // WebRTC signaling
-//     socket.on("webrtc-offer", async ({ from, sdp }) => {
-//       if (pcsRef.current[from]) return;
-//       const pc = createPeerConnection(from);
-//       pcsRef.current[from] = pc;
-//       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-//       const answer = await pc.createAnswer();
-//       await pc.setLocalDescription(answer);
-//       socket.emit("webrtc-answer", { to: from, sdp: pc.localDescription });
-//     });
-
-//     socket.on("webrtc-answer", async ({ from, sdp }) => {
-//       const pc = pcsRef.current[from];
-//       if (!pc) return;
-//       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-//     });
-
-//     socket.on("ice-candidate", async ({ from, candidate }) => {
-//       const pc = pcsRef.current[from];
-//       if (!pc) return;
-//       try { await pc.addIceCandidate(new RTCIceCandidate(candidate)); }
-//       catch(e) { console.error("ICE error:", e); }
-//     });
-
-//     socket.on("chat-message", ({ message, user, timestamp }) => {
-//       setChatMessages(prev => [...prev, { message, user, timestamp }]);
-//     });
-
-//     return () => {
-//       socket.off("meeting-participants");
-//       socket.off("user-joined");
-//       socket.off("webrtc-offer");
-//       socket.off("webrtc-answer");
-//       socket.off("ice-candidate");
-//       socket.off("chat-message");
-//       socket.disconnect();
-
-//       Object.values(pcsRef.current).forEach(pc => pc.close());
-//       pcsRef.current = {};
-//       setPeers({});
-//     };
-//   }, [meetingId, localStream]);
-
-//   // Create PeerConnection
-//   function createPeerConnection(remoteSocketId) {
-//     const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
-//     const remoteStream = new MediaStream();
-
-//     // Add local tracks
-//     if (localStream) {
-//       localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-//     }
-
-//     // Remote tracks
-//     pc.ontrack = (event) => {
-//       event.streams?.[0]?.getTracks().forEach(t => remoteStream.addTrack(t));
-//       setPeers(prev => ({ ...prev, [remoteSocketId]: { ...(prev[remoteSocketId] || {}), stream: remoteStream } }));
-//     };
-
-//     // ICE candidates
-//     pc.onicecandidate = (e) => {
-//       if (e.candidate) {
-//         socket.emit("ice-candidate", { to: remoteSocketId, candidate: e.candidate });
-//       }
-//     };
-
-//     pc.onconnectionstatechange = () => {
-//       if (["disconnected", "failed", "closed"].includes(pc.connectionState)) {
-//         setPeers(prev => {
-//           const copy = { ...prev };
-//           delete copy[remoteSocketId];
-//           return copy;
-//         });
-//         pcsRef.current[remoteSocketId]?.close();
-//         delete pcsRef.current[remoteSocketId];
-//       }
-//     };
-
-//     setPeers(prev => ({ ...prev, [remoteSocketId]: { ...(prev[remoteSocketId] || {}), pc, stream: remoteStream } }));
-//     return pc;
-//   }
-
-//   // Create offer
-//   async function createOfferTo(remoteSocketId) {
-//     if (pcsRef.current[remoteSocketId]) return;
-//     const pc = createPeerConnection(remoteSocketId);
-//     pcsRef.current[remoteSocketId] = pc;
-
-//     try {
-//       const offer = await pc.createOffer();
-//       await pc.setLocalDescription(offer);
-//       socket.emit("webrtc-offer", { to: remoteSocketId, sdp: pc.localDescription });
-//     } catch (err) {
-//       console.error("Offer error:", err);
-//     }
-//   }
-
-//   // Controls
-//   function toggleMute() {
-//     if (!localStream) return;
-//     const audioTracks = localStream.getAudioTracks();
-//     audioTracks.forEach(t => t.enabled = !t.enabled);
-//     setMuted(audioTracks.length > 0 ? !audioTracks[0].enabled : false);
-//   }
-
-//   function toggleCamera() {
-//     if (!localStream) return;
-//     const videoTracks = localStream.getVideoTracks();
-//     videoTracks.forEach(t => t.enabled = !t.enabled);
-//     setCameraOff(videoTracks.length > 0 ? !videoTracks[0].enabled : false);
-//   }
-
-//   async function startScreenShare() {
-//     if (!navigator.mediaDevices.getDisplayMedia) return alert("Screen sharing not supported.");
-//     try {
-//       const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
-//       const screenTrack = screenStream.getVideoTracks()[0];
-
-//       Object.values(pcsRef.current).forEach(pc => {
-//         const sender = pc.getSenders().find(s => s.track?.kind === "video");
-//         sender?.replaceTrack(screenTrack);
-//       });
-
-//       screenTrack.onended = () => {
-//         const camTrack = localStream?.getVideoTracks()[0];
-//         Object.values(pcsRef.current).forEach(pc => {
-//           const sender = pc.getSenders().find(s => s.track?.kind === "video");
-//           sender?.replaceTrack(camTrack);
-//         });
-//       };
-//     } catch (err) { console.error(err); }
-//   }
-
-//   function sendChat(message) {
-//     if (!message?.trim()) return;
-//     socket.emit("chat-message", { meetingId, message, user: { name: "Me" } });
-//     setChatMessages(prev => [...prev, { message, user: { name: "Me" }, timestamp: Date.now() }]);
-//   }
-
-//   return (
-//     <div className="h-screen flex flex-col bg-gray-900 text-white">
-//       <div className="flex-1 p-4 max-w-7xl mx-auto">
-//         <h2 className="text-2xl font-bold mb-4">Meeting: {meetingId}</h2>
-
-//         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-//           <div className="md:col-span-2">
-//             <VideoGrid localVideoRef={localVideoRef} localStream={localStream} peers={peers} />
-//           </div>
-
-//           <div className="space-y-4">
-//             <Controls
-//               muted={muted}
-//               cameraOff={cameraOff}
-//               onToggleMute={toggleMute}
-//               onToggleCamera={toggleCamera}
-//               onScreenShare={startScreenShare}
-//             />
-//             <ChatPanel messages={chatMessages} onSend={sendChat} />
-//           </div>
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
+// src/pages/Meeting.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import { socket } from "../services/socket";
@@ -533,6 +8,12 @@ import ChatPanel from "../components/ChatPanel";
 import TopBar from "../components/TopBar";
 
 const storedUser = JSON.parse(localStorage.getItem("user"));
+
+// Normalize user object to always use _id
+if (storedUser && storedUser.id && !storedUser._id) {
+  storedUser._id = storedUser.id;
+}
+
 const STUN_SERVERS = [{ urls: "stun:stun.l.google.com:19302" }];
 
 export default function Meeting() {
@@ -547,14 +28,8 @@ export default function Meeting() {
   const [cameraOff, setCameraOff] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  //   useEffect(() => {
-  //   if (!meetingId || !storedUser) return;
-
-  //   socket.connect();
-  //   socket.emit("join-meeting", { meetingId, user: storedUser }); // send real user
-
-  //   // ... rest of socket.on handlers
-  // }, [meetingId, localStream]);
+  const pendingOffersRef = useRef([]);
+  const socketConnectedRef = useRef(false);
 
   // --- GET LOCAL MEDIA ---
   useEffect(() => {
@@ -579,32 +54,98 @@ export default function Meeting() {
     };
   }, []);
 
-  // --- SOCKET HANDLERS ---
+  // --- SOCKET CONNECTION & EVENTS ---
   useEffect(() => {
-    if (!meetingId) return;
+    if (!meetingId || !storedUser) return;
 
+    // Force fresh connection on mount
+    if (socket.connected) {
+      socket.disconnect();
+    }
+    
     socket.connect();
-    const user = { name: "Guest-" + Math.floor(Math.random() * 1000) };
-    socket.emit("join-meeting", { meetingId, user });
+    socketConnectedRef.current = true;
 
+    // Wait for connection before joining
+    const handleConnect = () => {
+      console.log("Socket connected, joining meeting");
+      socket.emit("join-meeting", { meetingId, user: storedUser });
+    };
+
+    if (socket.connected) {
+      handleConnect();
+    } else {
+      socket.on("connect", handleConnect);
+    }
+
+    // Load chat history
+    const handleChatHistory = (messages) => {
+      setChatMessages(messages);
+    };
+    socket.on("chat-history", handleChatHistory);
+
+    // Handle new chat messages
+    const handleChatMessage = ({ message, user, timestamp }) => {
+      setChatMessages((prev) => {
+        const lastMsg = prev[prev.length - 1];
+        if (
+          lastMsg &&
+          lastMsg.message === message &&
+          lastMsg.user._id === user._id
+        )
+          return prev;
+        return [...prev, { message, user, timestamp }];
+      });
+    };
+    socket.on("chat-message", handleChatMessage);
+
+    // Handle meeting participants
     socket.on("meeting-participants", (list) => {
+      console.log("Received meeting-participants:", list);
       const others = list.filter((p) => p.socketId !== socket.id);
       setParticipants(others);
-      others.forEach((p) => createOfferTo(p.socketId, p.user));
+      others.forEach((p) => {
+        if (localStream) {
+          createOfferTo(p.socketId, p.user);
+        } else {
+          pendingOffersRef.current.push({ socketId: p.socketId, user: p.user });
+        }
+      });
     });
 
+    // When a new user joins
     socket.on("user-joined", ({ socketId, user }) => {
-      setParticipants((prev) =>
-        prev.find((x) => x.socketId === socketId)
-          ? prev
-          : [...prev, { socketId, user }]
-      );
-      createOfferTo(socketId, user);
+      console.log("User joined:", socketId, user);
+      setParticipants((prev) => {
+        if (prev.some((x) => x.socketId === socketId)) return prev;
+        return [...prev, { socketId, user }];
+      });
+      if (localStream) createOfferTo(socketId, user);
+      else pendingOffersRef.current.push({ socketId, user });
     });
 
-    socket.on("webrtc-offer", async ({ from, sdp }) => {
-      if (pcsRef.current[from]) return;
-      const pc = createPeerConnection(from);
+    // When a user leaves
+    socket.on("user-left", ({ socketId }) => {
+      console.log("User left:", socketId);
+      setParticipants((prev) => prev.filter((p) => p.socketId !== socketId));
+      if (pcsRef.current[socketId]) {
+        pcsRef.current[socketId].close();
+        delete pcsRef.current[socketId];
+      }
+      setPeers((prev) => {
+        const updated = { ...prev };
+        delete updated[socketId];
+        return updated;
+      });
+    });
+
+    socket.on("webrtc-offer", async ({ from, sdp, fromUser }) => {
+      console.log("Received offer from:", from, fromUser);
+      if (pcsRef.current[from]) {
+        console.log("PC already exists for:", from);
+        return;
+      }
+      const pc = createPeerConnection(from, fromUser);
       pcsRef.current[from] = pc;
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
       const answer = await pc.createAnswer();
@@ -613,98 +154,145 @@ export default function Meeting() {
     });
 
     socket.on("webrtc-answer", async ({ from, sdp }) => {
+      console.log("Received answer from:", from);
       const pc = pcsRef.current[from];
-      if (!pc) return;
+      if (!pc) {
+        console.log("No PC found for answer from:", from);
+        return;
+      }
       await pc.setRemoteDescription(new RTCSessionDescription(sdp));
     });
 
     socket.on("ice-candidate", async ({ from, candidate }) => {
       const pc = pcsRef.current[from];
-      if (!pc) return;
+      if (!pc) {
+        console.log("No PC found for ICE candidate from:", from);
+        return;
+      }
       try {
         await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (e) {}
-    });
-
-    socket.on("chat-message", ({ message, user, timestamp }) => {
-      setChatMessages((prev) => [...prev, { message, user, timestamp }]);
+      } catch (e) {
+        console.error("Error adding ICE candidate", e);
+      }
     });
 
     return () => {
+      socket.off("chat-history", handleChatHistory);
+      socket.off("chat-message", handleChatMessage);
       socket.off("meeting-participants");
       socket.off("user-joined");
       socket.off("webrtc-offer");
       socket.off("webrtc-answer");
       socket.off("ice-candidate");
-      socket.off("chat-message");
+      socket.off("user-left");
       socket.disconnect();
+      socketConnectedRef.current = false;
       Object.values(pcsRef.current).forEach((pc) => pc.close());
       pcsRef.current = {};
       setPeers({});
     };
   }, [meetingId, localStream]);
 
+  useEffect(() => {
+    if (!localStream) return;
+    const pending = pendingOffersRef.current.splice(
+      0,
+      pendingOffersRef.current.length
+    );
+    pending.forEach(({ socketId, user }) => {
+      createOfferTo(socketId, user);
+    });
+  }, [localStream]);
+
   // --- CREATE PEER CONNECTION ---
-  function createPeerConnection(remoteSocketId) {
+  function createPeerConnection(remoteSocketId, remoteUser = null) {
+    console.log("Creating peer connection for:", remoteSocketId, remoteUser);
     const pc = new RTCPeerConnection({ iceServers: STUN_SERVERS });
-    if (localStream)
-      localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+    if (localStream) {
+      localStream.getTracks().forEach((t) => {
+        console.log("Adding local track to PC:", t.kind);
+        pc.addTrack(t, localStream);
+      });
+    }
 
     const remoteStream = new MediaStream();
     pc.ontrack = (ev) => {
-      ev.streams?.[0]?.getTracks().forEach((t) => remoteStream.addTrack(t));
+      console.log("Received remote track:", ev.track.kind, "from:", remoteSocketId);
+      ev.streams?.[0]?.getTracks().forEach((t) => {
+        console.log("Adding track to remote stream:", t.kind);
+        remoteStream.addTrack(t);
+      });
       setPeers((prev) => ({
         ...prev,
         [remoteSocketId]: {
-          ...(prev[remoteSocketId] || {}),
+          pc,
           stream: remoteStream,
+          user: remoteUser || prev?.[remoteSocketId]?.user || null,
         },
       }));
     };
 
     pc.onicecandidate = (e) => {
-      if (e.candidate)
+      if (e.candidate) {
         socket.emit("ice-candidate", {
           to: remoteSocketId,
           candidate: e.candidate,
         });
+      }
     };
 
     pc.onconnectionstatechange = () => {
+      console.log("Connection state changed:", pc.connectionState, "for:", remoteSocketId);
       if (["failed", "disconnected", "closed"].includes(pc.connectionState)) {
         setPeers((prev) => {
           const copy = { ...prev };
           delete copy[remoteSocketId];
           return copy;
         });
-        if (pcsRef.current[remoteSocketId])
+        if (pcsRef.current[remoteSocketId]) {
           pcsRef.current[remoteSocketId].close();
+        }
         delete pcsRef.current[remoteSocketId];
       }
     };
 
+    // Initialize peer state immediately
     setPeers((prev) => ({
       ...prev,
       [remoteSocketId]: {
-        ...(prev[remoteSocketId] || {}),
         pc,
         stream: remoteStream,
+        user: remoteUser || prev?.[remoteSocketId]?.user || null,
       },
     }));
+
     return pc;
   }
 
   // --- CREATE OFFER ---
-  async function createOfferTo(remoteSocketId) {
-    if (pcsRef.current[remoteSocketId]) return;
-    const pc = createPeerConnection(remoteSocketId);
+  async function createOfferTo(remoteSocketId, remoteUser = null) {
+    console.log("Creating offer to:", remoteSocketId, remoteUser);
+    if (pcsRef.current[remoteSocketId]) {
+      console.log("PC already exists, skipping offer creation");
+      return;
+    }
+
+    const pc = createPeerConnection(remoteSocketId, remoteUser);
     pcsRef.current[remoteSocketId] = pc;
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    socket.emit("webrtc-offer", {
-      to: remoteSocketId,
-      sdp: pc.localDescription,
-    });
+
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit("webrtc-offer", {
+        to: remoteSocketId,
+        sdp: pc.localDescription,
+        fromUser: storedUser,
+      });
+      console.log("Offer sent to:", remoteSocketId);
+    } catch (err) {
+      console.error("Error creating offer to", remoteSocketId, err);
+    }
   }
 
   // --- CONTROLS ---
@@ -747,69 +335,162 @@ export default function Meeting() {
     }
   }
 
-  function sendChat(message) {
+  // --- SEND CHAT ---
+  async function sendChat(message) {
     if (!message?.trim()) return;
-    socket.emit("chat-message", { meetingId, message, user: { name: "Me" } });
-    setChatMessages((prev) => [
-      ...prev,
-      { message, user: { name: "Me" }, timestamp: Date.now() },
-    ]);
+    const user = storedUser;
+    if (!user) return alert("User not logged in");
+
+    const userId = user._id || user.id;
+    if (!userId) {
+      console.error("User object is missing id:", user);
+      alert("Error: User ID is missing. Please log in again.");
+      return;
+    }
+
+    socket.emit("chat-message", {
+      meetingId,
+      message,
+      user: {
+        name: user.name,
+        _id: userId,
+      },
+    });
   }
 
   // --- RENDER ---
   return (
-    <div className="h-screen flex flex-col bg-gray-900 text-white">
-      {/* Top Bar */}
-      <TopBar />
-
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden mt-0">
-        {/* Video Grid */}
-        <div
-          className={`flex-1 transition-all duration-300 ${
-            sidebarOpen ? "md:w-2/3" : "w-full"
-          }`}
-        >
-          <VideoGrid
-            localVideoRef={localVideoRef}
-            localStream={localStream}
-            peers={peers}
-          />
-        </div>
-
-        {/* Sidebar */}
-        <div
-          className={`bg-gray-800 p-4 md:w-1/3 w-full transition-all duration-300 ${
-            sidebarOpen ? "block" : "hidden md:block"
-          }`}
-        >
-          <ChatPanel messages={chatMessages} onSend={sendChat} />
-          <button
-            className="mt-2 w-full py-2 bg-red-600 rounded-md hover:bg-red-700"
-            onClick={() =>
-              alert("Leave meeting functionality can be implemented here")
-            }
-          >
-            Leave Meeting
-          </button>
-        </div>
+    <div className="h-screen flex flex-col bg-gradient-to-br from-slate-900 via-gray-900 to-slate-800 text-white overflow-hidden">
+      <div className="flex-shrink-0 border-b border-gray-700/50 backdrop-blur-sm bg-gray-900/80">
+        <TopBar />
       </div>
 
-      {/* Controls */}
-      <div className="fixed bottom-0 left-0 w-full bg-gray-800 p-2 flex justify-center gap-4 shadow-lg">
-        <Controls
-          muted={muted}
-          cameraOff={cameraOff}
-          onToggleMute={toggleMute}
-          onToggleCamera={toggleCamera}
-          onScreenShare={startScreenShare}
-        />
-        <button
-          className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-md"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
+      <div className="flex-1 flex overflow-hidden relative">
+        <div
+          className={`flex-1 transition-all duration-500 ease-in-out ${
+            sidebarOpen ? "lg:mr-96" : "mr-0"
+          }`}
         >
-          {sidebarOpen ? "Hide Chat" : "Show Chat"}
-        </button>
+          <div className="h-full w-full p-3 lg:p-4">
+            <VideoGrid
+              localVideoRef={localVideoRef}
+              localStream={localStream}
+              user={storedUser}
+              peers={peers}
+              participants={participants}
+              muted={muted}
+              cameraOff={cameraOff}
+            />
+          </div>
+        </div>
+
+        <div
+          className={`fixed lg:absolute top-0 right-0 h-full w-full lg:w-96 bg-gradient-to-b from-gray-800 to-gray-900 border-l border-gray-700/50 shadow-2xl transform transition-transform duration-500 ease-in-out z-40 ${
+            sidebarOpen ? "translate-x-0" : "translate-x-full"
+          }`}
+        >
+          <div className="h-full flex flex-col">
+            <div className="flex-shrink-0 px-6 py-4 border-b border-gray-700/50 bg-gray-800/50 backdrop-blur-sm">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-100">
+                  Meeting Chat
+                </h2>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="lg:hidden p-2 hover:bg-gray-700/50 rounded-lg transition-colors duration-200"
+                  aria-label="Close chat"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
+                  </svg>
+                </button>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                {participants.length + 1} participant
+                {participants.length !== 0 ? "s" : ""}
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-hidden">
+              <ChatPanel messages={chatMessages} onSend={sendChat} />
+            </div>
+
+            <div className="flex-shrink-0 p-4 border-t border-gray-700/50 bg-gray-800/30">
+              <button
+                className="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-xl font-medium shadow-lg hover:shadow-red-500/25 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+                onClick={() =>
+                  alert("Leave meeting functionality can be implemented here")
+                }
+              >
+                Leave Meeting
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+      </div>
+
+      <div className="flex-shrink-0 bg-gradient-to-t from-gray-900 via-gray-800 to-gray-800/95 border-t border-gray-700/50 shadow-2xl backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between gap-4">
+            <div className="hidden md:flex items-center gap-3 text-sm text-gray-400">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="font-medium">Connected</span>
+              </div>
+            </div>
+
+            <div className="flex-1 flex justify-center">
+              <Controls
+                muted={muted}
+                cameraOff={cameraOff}
+                onToggleMute={toggleMute}
+                onToggleCamera={toggleCamera}
+                onScreenShare={startScreenShare}
+              />
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 rounded-xl font-medium shadow-lg hover:shadow-blue-500/25 transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]"
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
+                <span className="hidden sm:inline">
+                  {sidebarOpen ? "Hide" : "Show"} Chat
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
