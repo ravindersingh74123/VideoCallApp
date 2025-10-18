@@ -9,10 +9,10 @@ export default function Signup() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const token = localStorage.getItem("token");
-    if (token) navigate("/");
-  }, [navigate]);
+  // useEffect(() => {
+  //   const token = localStorage.getItem("token");
+  //   if (token) navigate("/");
+  // }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
