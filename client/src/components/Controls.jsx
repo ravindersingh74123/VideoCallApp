@@ -1,10 +1,13 @@
-// src/components/Controls.jsx
-import React from "react";
 import {
-  Mic, MicOff, Video, VideoOff, ScreenShare, PhoneOff, MessageSquare
+  Mic,
+  MicOff,
+  Video,
+  VideoOff,
+  ScreenShare,
+  PhoneOff,
+  MessageSquare,
 } from "lucide-react";
 
-// A reusable button component for a consistent look and accessibility
 const ControlButton = ({ onClick, children, className = "", title }) => (
   <button
     onClick={onClick}
@@ -24,13 +27,19 @@ export default function Controls({
   onScreenShare,
   onLeave,
   onToggleChat,
+  isAdmin = false,
+  participants = [],
 }) {
   return (
     <div className="bg-[#1E1E1E] rounded-xl p-3 flex justify-center items-center gap-4 shadow-lg mx-auto">
       <ControlButton
         onClick={onToggleMute}
         title={muted ? "Unmute" : "Mute"}
-        className={muted ? "bg-red-600 text-white" : "bg-gray-600 text-white hover:bg-gray-500"}
+        className={
+          muted
+            ? "bg-red-600 text-white"
+            : "bg-gray-600 text-white hover:bg-gray-500"
+        }
       >
         {muted ? <MicOff size={22} /> : <Mic size={22} />}
       </ControlButton>
@@ -38,7 +47,11 @@ export default function Controls({
       <ControlButton
         onClick={onToggleCamera}
         title={cameraOff ? "Turn Camera On" : "Turn Camera Off"}
-        className={cameraOff ? "bg-red-600 text-white" : "bg-gray-600 text-white hover:bg-gray-500"}
+        className={
+          cameraOff
+            ? "bg-red-600 text-white"
+            : "bg-gray-600 text-white hover:bg-gray-500"
+        }
       >
         {cameraOff ? <VideoOff size={22} /> : <Video size={22} />}
       </ControlButton>
@@ -51,13 +64,16 @@ export default function Controls({
         <ScreenShare size={22} />
       </ControlButton>
 
-      {/* Visual Separator */}
       <div className="h-8 w-[1px] bg-gray-600 mx-2"></div>
 
       <ControlButton
         onClick={onToggleChat}
         title={isChatOpen ? "Hide Chat" : "Show Chat"}
-        className={isChatOpen ? "bg-blue-600 text-white" : "bg-gray-600 text-white hover:bg-gray-500"}
+        className={
+          isChatOpen
+            ? "bg-blue-600 text-white"
+            : "bg-gray-600 text-white hover:bg-gray-500"
+        }
       >
         <MessageSquare size={22} />
       </ControlButton>
@@ -69,6 +85,12 @@ export default function Controls({
       >
         <PhoneOff size={22} />
       </ControlButton>
+
+      {isAdmin && (
+        <div className="ml-4 text-gray-300 text-sm font-medium">
+          Participants: {participants.length + 1}
+        </div>
+      )}
     </div>
   );
 }

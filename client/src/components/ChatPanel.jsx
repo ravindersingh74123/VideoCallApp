@@ -17,7 +17,7 @@ export default function ChatPanel({ messages, onSend, user, onClose }) {
       setInput("");
     }
   };
-  
+
   const handleKeyPress = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -29,7 +29,10 @@ export default function ChatPanel({ messages, onSend, user, onClose }) {
     <div className="h-full flex flex-col bg-[#1E1E1E] p-4 text-white">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-xl font-semibold">Meeting Chat</h3>
-        <button onClick={onClose} className="p-1 text-gray-400 hover:text-white transition-colors">
+        <button
+          onClick={onClose}
+          className="p-1 text-gray-400 hover:text-white transition-colors"
+        >
           <X size={24} />
         </button>
       </div>
@@ -62,20 +65,27 @@ export default function ChatPanel({ messages, onSend, user, onClose }) {
 }
 
 function MessageTile({ message, currentUser }) {
-  const timestamp = message.timestamp ? format(new Date(message.timestamp), "p") : "";
+  const timestamp = message.timestamp
+    ? format(new Date(message.timestamp), "p")
+    : "";
   const senderName = message.user?.name || "Unknown";
-  
-  // Robust check for current user's message
+
   const isMe = message.user?._id === (currentUser?._id || currentUser?.id);
 
   return (
     <div className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}>
       <div
         className={`max-w-[80%] p-3 rounded-xl ${
-          isMe ? "bg-blue-600 text-white rounded-br-none" : "bg-gray-700 text-white rounded-bl-none"
+          isMe
+            ? "bg-blue-600 text-white rounded-br-none"
+            : "bg-gray-700 text-white rounded-bl-none"
         }`}
       >
-        {!isMe && <div className="text-xs font-bold text-cyan-300 mb-1">{senderName}</div>}
+        {!isMe && (
+          <div className="text-xs font-bold text-cyan-300 mb-1">
+            {senderName}
+          </div>
+        )}
         <p className="text-sm break-words">{message.message}</p>
       </div>
       <span className="text-xs text-gray-500 mt-1 px-1">{timestamp}</span>
