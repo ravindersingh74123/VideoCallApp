@@ -34,11 +34,11 @@ export default function Home() {
     }
   })();
 
-  useEffect(() => {
-    if (!user || !localStorage.getItem("token")) {
-      navigate("/login");
-    }
-  }, [navigate, user]);
+  // useEffect(() => {
+  //   if (!user || !localStorage.getItem("token")) {
+  //     navigate("/login");
+  //   }
+  // }, [navigate, user]);
 
   const handleCreateMeeting = async () => {
     if (!user || !(user.id || user._id)) {
