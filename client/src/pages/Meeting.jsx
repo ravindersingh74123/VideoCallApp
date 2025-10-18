@@ -15,6 +15,10 @@ import { useCallback } from "react";
 const storedUser = (() => {
   try {
     const raw = localStorage.getItem("user");
+    if (!raw) {
+      console.warn("⚠️ [STORED-USER] No user found in localStorage.");
+      return null;
+    }
     const parsed = raw ? JSON.parse(raw) : null;
     if (parsed && parsed.id && !parsed._id) parsed._id = parsed.id;
     return parsed;
