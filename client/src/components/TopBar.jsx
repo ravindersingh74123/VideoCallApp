@@ -5,7 +5,30 @@ import { LogOut } from "lucide-react";
 
 export default function TopBar() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = (() => {
+    try {
+      const raw = localStorage.getItem("user");
+      if (!raw) {
+        console.warn("⚠️ [HOME] No user found in localStorage.");
+        return null; // Return null if nothing is found
+      }
+      const parsed = JSON.parse(raw);
+      // Optional: Add basic validation if needed
+      if (parsed && (parsed.id || parsed._id) && parsed.name) {
+         // Ensure _id exists if id does
+         if (parsed.id && !parsed._id) parsed._id = parsed.id;
+         return parsed;
+      } else {
+         console.warn("⚠️ [HOME] Parsed user data is invalid.", parsed);
+         localStorage.removeItem("user"); // Clear invalid data
+         return null;
+      }
+    } catch (e) {
+      console.error("❌ [HOME] Failed to parse localStorage user", e);
+      localStorage.removeItem("user"); // Attempt to clear corrupted data
+      return null; // Return null on error
+    }
+  })();
 
   const handleLogout = () => {
     localStorage.removeItem("token");
