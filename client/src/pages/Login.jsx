@@ -8,11 +8,11 @@ export default function Login() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (localStorage.getItem("token")) {
-      navigate("/");
-    }
-  }, [navigate]);
+  // useEffect(() => {
+  //   if (localStorage.getItem("token")) {
+  //     navigate("/");
+  //   }
+  // }, [navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
