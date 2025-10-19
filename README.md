@@ -24,6 +24,16 @@ VideoCallApp is a full-stack, real-time video conferencing application designed 
     -   **Meeting Settings:** Configure meeting policies like requiring admin admission and muting participants on entry.
 -   **Responsive UI:** A clean and responsive user interface built with Tailwind CSS, featuring adaptive video grid layouts.
 
+## Live Demo Video Link
+
+https://drive.google.com/file/d/1_uwOdAaLa47V4hz6YLmzRXXDfKKTpo6J/view?usp=sharing
+
+## Deployed Link
+
+Frontend=https://videocallapp-frontend-ckk3.onrender.com
+Backend=https://videocallapp-q3f0.onrender.com
+
+
 ## Tech Stack
 
 -   **Frontend:**
@@ -141,3 +151,12 @@ The server exposes the following REST API endpoints:
 -   `DELETE /api/admin/:meetingId/participants/:userId`: Remove a participant from the meeting (as admin).
 -   `POST /api/admin/:meetingId/admit/:userId`: Admit a user from the waiting room.
 -   ...and more for managing participant permissions.
+
+
+## Screenshots
+
+<img width="1919" height="899" alt="image" src="https://github.com/user-attachments/assets/cb591019-40e9-4768-b5e7-2048fa4c53c8" />
+
+<img width="1900" height="887" alt="image" src="https://github.com/user-attachments/assets/ed2026f8-2f42-422f-bd24-1f84853c3282" />
+
+
