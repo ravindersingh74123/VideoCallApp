@@ -18,7 +18,7 @@ export default function Login() {
     e.preventDefault();
     setError("");
     try {
-      const res = await axios.post("/api/users/login", { email, password });
+      const res = await axios.post("https://videocallapp-q3f0.onrender.com/api/users/login", { email, password });
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
       navigate("/");
