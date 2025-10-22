@@ -48,7 +48,7 @@ export default function Home() {
     setLoading(true);
     const newId = Math.random().toString(36).substring(2, 12);
     try {
-      await axios.post("/api/meetings", {
+      await axios.post("https://videocallapp-q3f0.onrender.com/api/meetings", {
         meetingId: newId,
         createdBy: user.id || user._id,
       });
