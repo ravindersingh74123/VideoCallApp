@@ -4,54 +4,39 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import TopBar from "../components/TopBar";
 import { Video } from "lucide-react";
+import { storage } from "../utils/storage";
 
 export default function Home() {
   const navigate = useNavigate();
   const [meetingId, setMeetingId] = useState("");
   const [loading, setLoading] = useState(false);
-  const user = (() => {
-    try {
-      const raw = localStorage.getItem("user");
-      if (!raw) {
-        console.warn("⚠️ [HOME] No user found in localStorage.");
-        return null; // Return null if nothing is found
-      }
-      const parsed = JSON.parse(raw);
-      // Optional: Add basic validation if needed
-      if (parsed && (parsed.id || parsed._id) && parsed.name) {
-         // Ensure _id exists if id does
-         if (parsed.id && !parsed._id) parsed._id = parsed.id;
-         return parsed;
-      } else {
-         console.warn("⚠️ [HOME] Parsed user data is invalid.", parsed);
-         localStorage.removeItem("user"); // Clear invalid data
-         return null;
-      }
-    } catch (e) {
-      console.error("❌ [HOME] Failed to parse localStorage user", e);
-      localStorage.removeItem("user"); // Attempt to clear corrupted data
-      return null; // Return null on error
-    }
-  })();
+
+  const user = storage.getUser(); // Safe read
+  const token = storage.getToken(); // Safe read
 
   useEffect(() => {
-    if (!user || !localStorage.getItem("token")) {
+    if (!token || !user) {
+      storage.clearAll();
       navigate("/login");
     }
-  }, [navigate, user]);
+  }, [navigate, token, user]);
 
   const handleCreateMeeting = async () => {
-    if (!user || !(user.id || user._id)) {
+    if (!user || !(user._id || user.id)) {
       alert("User not logged in properly.");
       return;
     }
+
     setLoading(true);
+
     const newId = Math.random().toString(36).substring(2, 12);
+
     try {
       await axios.post("/api/meetings", {
         meetingId: newId,
-        createdBy: user.id || user._id,
+        createdBy: user._id || user.id,
       });
+
       navigate(`/meeting/${newId}`);
     } catch (err) {
       console.error("Error creating meeting:", err);
@@ -66,9 +51,12 @@ export default function Home() {
       alert("Please enter a meeting ID");
       return;
     }
+
     setLoading(true);
+
     try {
       const res = await axios.get(`/api/meetings/${meetingId.trim()}`);
+
       if (res.data.exists) {
         navigate(`/meeting/${meetingId.trim()}`);
       } else {
@@ -81,7 +69,6 @@ export default function Home() {
       setLoading(false);
     }
   };
-
   return (
     <div className="h-screen flex flex-col bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 text-white overflow-hidden antialiased">
       <div className="flex-shrink-0">

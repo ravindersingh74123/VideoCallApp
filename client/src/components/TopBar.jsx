@@ -2,22 +2,14 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut } from "lucide-react";
+import { storage } from "../utils/storage";
 
 export default function TopBar() {
   const navigate = useNavigate();
-  const storedUser = localStorage.getItem("user");
-  let user = null;
-
-  try {
-    if (storedUser) user = JSON.parse(storedUser);
-  } catch (err) {
-    console.error("Invalid user JSON in localStorage:", err);
-    localStorage.removeItem("user");
-  }
+  const user = storage.getUser(); // Safe read
 
   const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
+    storage.clearAll(); // Safer logout
     navigate("/login");
   };
 

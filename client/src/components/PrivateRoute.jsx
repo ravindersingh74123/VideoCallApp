@@ -1,16 +1,15 @@
 // PrivateRoute.jsx
+import { Navigate } from "react-router-dom";
+import { storage } from "../utils/storage";
+
 export default function PrivateRoute({ children }) {
-  const token = localStorage.getItem("token");
+  const token = storage.getToken();
+  const user = storage.getUser();
 
-  const user = localStorage.getItem("user");
-  if (user === "undefined" || user === "null") {
-    localStorage.removeItem("user");
+  if (!token || !user) {
+    storage.clearAll();
+    return <Navigate to="/login" replace />;
   }
-  if (token === "undefined" || token === "null") {
-    localStorage.removeItem("token");
-  }
-
-  if (!token) return <Navigate to="/login" replace />;
 
   return children;
 }

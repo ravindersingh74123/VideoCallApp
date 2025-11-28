@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { storage } from "../utils/storage";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -20,20 +21,12 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
     try {
       const res = await axios.post("/api/users/login", { email, password });
 
-      if (res.data.token) {
-        localStorage.setItem("token", res.data.token);
-      } else {
-        localStorage.removeItem("token");
-      }
-
-      if (res.data.user) {
-        localStorage.setItem("user", JSON.stringify(res.data.user));
-      } else {
-        localStorage.removeItem("user");
-      }
+      storage.setToken(res.data?.token);
+      storage.setUser(res.data?.user);
 
       navigate("/");
     } catch (err) {
