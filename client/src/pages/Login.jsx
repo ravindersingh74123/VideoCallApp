@@ -22,11 +22,18 @@ export default function Login() {
     setError("");
     try {
       const res = await axios.post("/api/users/login", { email, password });
-      localStorage.setItem("token", res.data.token);
-      const user = res.data.user || null;
-      localStorage.setItem("user", JSON.stringify(user));
 
-      console.log("Login response:", res.data);
+      if (res.data.token) {
+        localStorage.setItem("token", res.data.token);
+      } else {
+        localStorage.removeItem("token");
+      }
+
+      if (res.data.user) {
+        localStorage.setItem("user", JSON.stringify(res.data.user));
+      } else {
+        localStorage.removeItem("user");
+      }
 
       navigate("/");
     } catch (err) {
