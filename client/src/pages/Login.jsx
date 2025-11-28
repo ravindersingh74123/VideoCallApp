@@ -23,7 +23,7 @@ export default function Login() {
     setError("");
 
     try {
-      const res = await axios.post("/api/users/login", { email, password });
+      const res = await axios.post("https://videocallapp-q3f0.onrender.com/api/users/login", { email, password });
 
       storage.setToken(res.data?.token);
       storage.setUser(res.data?.user);

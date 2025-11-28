@@ -114,7 +114,7 @@ export default function Meeting() {
      let cancelled = false;
     // fetch meeting metadata to confirm it exists and to show createdBy etc.
 axios
-      .get(`/api/meetings/${meetingId}`)
+      .get(`https://videocallapp-q3f0.onrender.com/api/meetings/${meetingId}`)
       .then((res) => {
         if (cancelled) return;
         const data = res.data || {};

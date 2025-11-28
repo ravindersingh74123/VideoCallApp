@@ -18,9 +18,9 @@ export default function Signup() {
     e.preventDefault();
     setError("");
     try {
-      await axios.post("/api/users/signup", { name, email, password });
+      await axios.post("https://videocallapp-q3f0.onrender.com/api/users/signup", { name, email, password });
 
-      const res = await axios.post("/api/users/login", { email, password });
+      const res = await axios.post("https://videocallapp-q3f0.onrender.com/api/users/login", { email, password });
       localStorage.setItem("token", res.data.token);
       localStorage.setItem("user", JSON.stringify(res.data.user));
 

@@ -32,7 +32,7 @@ export default function Home() {
     const newId = Math.random().toString(36).substring(2, 12);
 
     try {
-      await axios.post("/api/meetings", {
+      await axios.post("https://videocallapp-q3f0.onrender.com/api/meetings", {
         meetingId: newId,
         createdBy: user._id || user.id,
       });
@@ -55,7 +55,7 @@ export default function Home() {
     setLoading(true);
 
     try {
-      const res = await axios.get(`/api/meetings/${meetingId.trim()}`);
+      const res = await axios.get(`https://videocallapp-q3f0.onrender.com/api/meetings/${meetingId.trim()}`);
 
       if (res.data.exists) {
         navigate(`/meeting/${meetingId.trim()}`);
