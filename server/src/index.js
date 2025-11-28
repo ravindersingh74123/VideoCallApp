@@ -19,12 +19,6 @@ app.use("/api/users", usersRouter);
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/admin", adminRouter);
 
-app.use(express.static(path.join(__dirname, "../../client/dist")));
-
-// ---------- SPA fallback: send index.html ----------
-app.get(/^.*$/, (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
-});
 
 
 const PORT = process.env.PORT || 5000;
