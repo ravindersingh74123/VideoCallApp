@@ -19,11 +19,11 @@ app.use("/api/users", usersRouter);
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/admin", adminRouter);
 
-app.use(express.static(path.join(__dirname, "../client/dist")));
+app.use(express.static(path.join(__dirname, "../dist")));
 
 // Serve frontend on non-API routes
 app.get(/^(?!\/api).*/, (req, res) => {
-  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+  res.sendFile(path.join(__dirname, "../dist/index.html"));
 });
 
 const PORT = process.env.PORT || 5000;
