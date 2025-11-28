@@ -164,7 +164,7 @@ axios
     const shareData = {
       title: "Join my meeting",
       text: `Join my meeting: ${meetingIdP}`,
-      url: `${window.location.origin}/meeting/${meetingIdP}`,
+      url: `https://videocallapp-q3f0.onrender.com/meeting/${meetingIdP}`,
     };
     if (navigator.share) {
       try {
