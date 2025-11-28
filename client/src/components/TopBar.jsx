@@ -5,7 +5,15 @@ import { LogOut } from "lucide-react";
 
 export default function TopBar() {
   const navigate = useNavigate();
-  const user = JSON.parse(localStorage.getItem("user"));
+  const storedUser = localStorage.getItem("user");
+  let user = null;
+
+  try {
+    if (storedUser) user = JSON.parse(storedUser);
+  } catch (err) {
+    console.error("Invalid user JSON in localStorage:", err);
+    localStorage.removeItem("user");
+  }
 
   const handleLogout = () => {
     localStorage.removeItem("token");
