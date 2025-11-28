@@ -9,7 +9,10 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (localStorage.getItem("token")) {
+    const token = localStorage.getItem("token");
+    const user = localStorage.getItem("user");
+
+    if (token && user && user !== "undefined" && user !== "null") {
       navigate("/");
     }
   }, [navigate]);
