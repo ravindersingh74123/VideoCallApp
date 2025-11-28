@@ -8,6 +8,8 @@ const meetingsRouter = require("./routes/meetingsRoutes");
 const usersRouter = require("./routes/users");
 const adminRouter = require("./routes/adminRoutes");
 const socketHandler = require("./socket");
+const path = require("path");
+
 
 const app = express();
 app.use(cors({ origin: process.env.FRONTEND_URL || "*" }));
@@ -17,8 +19,13 @@ app.use("/api/users", usersRouter);
 app.use("/api/meetings", meetingsRouter);
 app.use("/api/admin", adminRouter);
 
-// Handle unmatched routes
-app.use((req, res) => res.status(404).json({ message: "Route not found" }));
+app.use(express.static(path.join(__dirname, "../../client/dist")));
+
+// ---------- SPA fallback: send index.html ----------
+app.get(/^.*$/, (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/dist/index.html"));
+});
+
 
 const PORT = process.env.PORT || 5000;
 
